@@ -245,17 +245,17 @@ Acesse Meu Site Oficial
 const SUPABASE_URL = 'https://rbygxkbewzknvjjhxdvw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJieWd4a2Jld3prbnZqamh4ZHZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMDcxNjQsImV4cCI6MjA4MTU4MzE2NH0.YrHF9HEGo6yv9MyNsPzFgBhaAB1DRh2SLU8f7L6s1nY';
 
-// IDENTIFICAÇÃO ÚNICA PARA ESTA PÁGINA (Cartão de Visitas)
+// IDENTIFICAÇÃO ÚNICA PARA ESTA PÁGINA
 const PAGE_ID = 'cartao-visitas-alexia-melusine';
 
-// Função para criar ou incrementar o contador
-async function incrementPageView() {
+// Função para incrementar e mostrar o contador
+async function updateViewCounter() {
   try {
     const counterElement = document.getElementById('accessCounter');
     
-    // Primeiro, verifica se o registro existe
-    const checkResponse = await fetch(
-      `${SUPABASE_URL}/rest/v1/page_views?page=eq.${PAGE_ID}&select=view_count`,
+    // 1. Busca o valor atual
+    const currentResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/page_views?page=eq.${encodeURIComponent(PAGE_ID)}&select=view_count`,
       {
         headers: {
           'apikey': SUPABASE_ANON_KEY,
@@ -265,13 +265,18 @@ async function incrementPageView() {
       }
     );
     
-    const existingData = await checkResponse.json();
+    // Se a resposta não for OK, usa fallback
+    if (!currentResponse.ok) {
+      throw new Error('Falha ao buscar contador');
+    }
     
-    let newCount;
+    const currentData = await currentResponse.json();
+    console.log('Dados recebidos:', currentData);
     
-    if (existingData.length === 0) {
-      // Se não existir, cria um novo registro
-      console.log('Criando novo registro para:', PAGE_ID);
+    // Se não existe registro, cria um
+    if (!currentData || currentData.length === 0) {
+      console.log('Criando novo registro...');
+      
       const createResponse = await fetch(
         `${SUPABASE_URL}/rest/v1/page_views`,
         {
@@ -290,15 +295,23 @@ async function incrementPageView() {
         }
       );
       
-      const createdData = await createResponse.json();
-      newCount = createdData[0]?.view_count || 1;
+      if (createResponse.ok) {
+        const createdData = await createResponse.json();
+        const newCount = createdData[0]?.view_count || 1;
+        counterElement.textContent = newCount.toLocaleString('pt-BR');
+        counterElement.classList.remove('loading');
+        console.log('Novo registro criado:', newCount);
+      } else {
+        throw new Error('Falha ao criar registro');
+      }
       
     } else {
-      // Se já existir, incrementa
-      const currentCount = existingData[0]?.view_count || 0;
+      // Se existe, incrementa
+      const currentCount = currentData[0]?.view_count || 0;
+      const newCount = currentCount + 1;
       
       const updateResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/page_views?page=eq.${PAGE_ID}`,
+        `${SUPABASE_URL}/rest/v1/page_views?page=eq.${encodeURIComponent(PAGE_ID)}`,
         {
           method: 'PATCH',
           headers: {
@@ -308,31 +321,42 @@ async function incrementPageView() {
             'Prefer': 'return=representation'
           },
           body: JSON.stringify({
-            view_count: currentCount + 1,
+            view_count: newCount,
             updated_at: new Date().toISOString()
           })
         }
       );
       
-      const updatedData = await updateResponse.json();
-      newCount = updatedData[0]?.view_count;
+      if (updateResponse.ok) {
+        const updatedData = await updateResponse.json();
+        const finalCount = updatedData[0]?.view_count || newCount;
+        counterElement.textContent = finalCount.toLocaleString('pt-BR');
+        counterElement.classList.remove('loading');
+        console.log('Contador atualizado:', finalCount);
+      } else {
+        throw new Error('Falha ao atualizar contador');
+      }
     }
     
-    // Atualiza o display de forma discreta
-    if (newCount) {
-      counterElement.textContent = `${newCount.toLocaleString('pt-BR')}`;
-      counterElement.classList.remove('loading');
-    } else {
-      counterElement.textContent = '0';
-      counterElement.classList.remove('loading');
-    }
-    
-    return newCount;
   } catch (error) {
-    console.error('Erro ao atualizar contador:', error);
-    document.getElementById('accessCounter').textContent = '0';
-    document.getElementById('accessCounter').classList.remove('loading');
-    return null;
+    console.error('Erro no contador Supabase:', error);
+    
+    // Fallback: contador local no localStorage
+    const counterElement = document.getElementById('accessCounter');
+    let localCount = localStorage.getItem(`views_${PAGE_ID}`);
+    
+    if (localCount === null) {
+      localCount = '1';
+    } else {
+      localCount = (parseInt(localCount) + 1).toString();
+    }
+    
+    localStorage.setItem(`views_${PAGE_ID}`, localCount);
+    counterElement.textContent = parseInt(localCount).toLocaleString('pt-BR');
+    counterElement.classList.remove('loading');
+    counterElement.title = 'Contador local (Supabase offline)';
+    
+    console.log('Usando contador local:', localCount);
   }
 }
 
@@ -341,10 +365,15 @@ function flipCard(){
   document.getElementById("flipCard").classList.toggle("flipped");
 }
 
-// Quando a página carrega, incrementa o contador
+// Quando a página carrega, atualiza o contador
 document.addEventListener('DOMContentLoaded', () => {
-  incrementPageView();
+  console.log('Página carregada, iniciando contador...');
+  updateViewCounter();
 });
+
+// Para debug: testar a conexão
+console.log('URL Supabase:', SUPABASE_URL);
+console.log('Página ID:', PAGE_ID);
 </script>
 
 </body>
