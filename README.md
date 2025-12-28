@@ -4,7 +4,7 @@ Um cartão de visitas interativo em formato flip-card (3D), totalmente responsiv
 
 ## Visão Geral
 
-![Prévia do cartão](https://alexialuzdeferro.github.io/visitas-card/)
+https://alexialuzdeferro.github.io/visitas-card/
 
 
 Este projeto é uma página única em HTML + CSS + JavaScript que simula um cartão físico com efeito de virada 3D.  
